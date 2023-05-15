@@ -45,6 +45,9 @@ async def on_ready():
 
 @client.tree.command()
 async def ping(interaction: discord.Interaction):
+    """
+    Get the latency of the bot
+    """
     # create embed
     embed = discord.Embed(
         title="Pong!",
@@ -56,6 +59,90 @@ async def ping(interaction: discord.Interaction):
         embed=embed,
         ephemeral=True,
     )
+
+
+@client.tree.command()
+async def nick(interaction: discord.Interaction, username: str):
+    """
+    Change your nickname to your chess.com username with your rating
+    """
+    async with aiohttp.ClientSession() as session:
+        async with session.get(
+            f"https://api.chess.com/pub/player/{username}/stats"
+        ) as resp1:
+            if resp1.status == 301 or resp1.status == 404:
+                # create embed
+                embed = discord.Embed(
+                    title="User not found",
+                    description="The user you are looking for doesn't exist",
+                    color=0xFF0000,
+                )
+                # send embed
+                return await interaction.response.send_message(
+                    embed=embed,
+                )
+            async with session.get(
+                f"https://api.chess.com/pub/player/{username}"
+            ) as resp2:
+                if resp1.status == 429 or resp2.status == 429:
+                    # create embed
+                    embed = discord.Embed(
+                        title="Rate limit exceeded",
+                        description="Please try again later",
+                        color=0xFF0000,
+                    )
+                    # send embed
+                    return await interaction.response.send_message(
+                        embed=embed,
+                        ephemeral=True,
+                    )
+
+                if resp1.status != 200 or resp2.status != 200:
+                    # create embed
+                    embed = discord.Embed(
+                        title="An error occured",
+                        description="Please try again later",
+                        color=0xFF0000,
+                    )
+                    # send embed
+                    return await interaction.response.send_message(
+                        embed=embed,
+                        ephemeral=True,
+                    )
+
+                stats = await resp1.json()
+                profile = await resp2.json()
+                # Update the users discord nickname
+                # the only way to get properly capitalised username is to get it from the profile url
+                username = profile["url"].split("/")[-1]
+
+                member = await interaction.guild.fetch_member(interaction.user.id)
+                try:
+                    await member.edit(
+                        nick=f"{username} ({stats['chess_rapid']['last']['rating']})"
+                    )
+                    # create embed
+                    embed = discord.Embed(
+                        title="Nickname changed",
+                        description=f"Your nickname has been changed to `{username} ({stats['chess_rapid']['last']['rating']})`",
+                        color=0x00FF00,
+                    )
+                    return await interaction.response.send_message(
+                        embed=embed,
+                        ephemeral=True,
+                    )
+
+                except discord.Forbidden:
+                    # create embed
+                    embed = discord.Embed(
+                        title="Nickname not changed",
+                        description="I don't have permission to change your nickname",
+                        color=0xFF0000,
+                    )
+                    return await interaction.response.send_message(
+                        embed=embed,
+                        ephemeral=True,
+                    )
 
 
 @client.tree.command()
